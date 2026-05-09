@@ -14,7 +14,7 @@ const routes = [
   {
     path: "/search/:searched?",
     name: "Search",
-    component: () => import("@/components/HelloWorld.vue"),
+    component: () => import("@/components/SearchResults.vue"),
     props: true
   },
   {

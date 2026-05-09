@@ -12,7 +12,6 @@
         <router-link
           :to="{ name: 'Search', params: { searched: searched } }"
           class="search-button"
-          @click.native="handleSearch"
         >
           <i class="fas fa-search"></i>
         </router-link>
@@ -35,12 +34,12 @@
             </div>
           </div>
         </div>
-      </div>
+    </div>
     </div>
 
     <!-- Actual Results -->
-    <div v-if="!loading" class="trending-grid">
-      <div v-for="(track, index) in tracks" :key="index" class="track-card">
+    <div v-if="!loading && hits.length > 0" class="trending-grid">
+      <div v-for="(track, index) in hits" :key="index" class="track-card">
         <div class="card-inner">
           <router-link
             :to="{ name: 'Player', params: { songid: track.id } }"
@@ -48,13 +47,13 @@
           >
             <div class="card-image">
               <img
-                :src="
-                  (track.images && track.images.coverart) ||
-                    'https://via.placeholder.com/300x300?text=No+Image'
-                "
-                :alt="track.title"
-                loading="lazy"
-              />
+                  :src="
+                    getV2SongCoverArt(track) ||
+                      'https://via.placeholder.com/500x500?text=No+Image'
+                  "
+                  :alt="track.attributes.name || 'Track cover'"
+                  loading="lazy"
+                />
               <div class="card-overlay">
                 <button class="play-button" aria-label="Play">
                   <i class="fas fa-play"></i>
@@ -63,14 +62,14 @@
               <div class="card-gradient"></div>
             </div>
             <div class="card-details">
-              <h3 class="track-title" :title="track.title || 'Unknown Title'">
-                {{ track.title || "Unknown Title" }}
+              <h3 class="track-title" :title="track.attributes.name || 'Unknown Title'">
+                {{ track.attributes.name || "Unknown Title" }}
               </h3>
               <p
                 class="track-artist"
-                :title="track.subtitle || 'Unknown Artist'"
+                :title="track.attributes.artistName || 'Unknown Artist'"
               >
-                {{ track.subtitle || "Unknown Artist" }}
+                {{ track.attributes.artistName || "Unknown Artist" }}
               </p>
             </div>
           </router-link>
@@ -80,7 +79,7 @@
 
     <!-- No Results Message -->
     <div
-      v-if="!loading && tracks.length === 0 && !isSearching"
+      v-if="!loading && hits?.length === 0 && !isSearching"
       class="no-results"
     >
       <i class="fas fa-music"></i>
@@ -94,145 +93,68 @@ export default {
   name: "Trending",
   data() {
     return {
-      songs: {}, // This object holds data coming from the api
-      tracks: [], // This object holds the array from the songs object
+      hits: [],
       show: false, // This controls the visibility of the elements
       searched: "",
       loading: true,
-      isSearching: false
+      isSearching: false,
+      artistid: "320569549"
     };
   },
   // This is mounted hook that runs when the component is mounted
   async mounted() {
     this.loading = true;
+    this.isSearching = true;
     try {
-      const response = await fetch(
-        "https://shazam.p.rapidapi.com/shazam-events/list?artistId=73406786&l=en-US&from=2022-12-31&limit=50&offset=0",
-        {
-          method: "GET",
-          headers: {
-            "x-rapidapi-key":
-              "d3c4ef33bfmshea48c175233c56dp1bf0b8jsnffa31f6c4ca3",
-            "x-rapidapi-host": "shazam.p.rapidapi.com"
-          }
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (data && Array.isArray(data.tracks)) {
-        this.songs = data;
-        this.tracks = data.tracks;
-        this.show = true;
-      } else {
-        this.tracks = [];
-      }
+       await this.fetchTrendingTracks();
     } catch (error) {
-      this.tracks = [];
+      this.hits = [];
     } finally {
       this.loading = false;
+      this.isSearching = false;
     }
   },
   methods: {
-    async handleSearch() {
-      if (this.searched.trim() !== "") {
-        this.isSearching = true;
-        this.loading = true;
-        try {
-          // Fetch search results
-          const response = await fetch(
-            `https://shazam.p.rapidapi.com/search?term=${encodeURIComponent(
-              this.searched
-            )}&locale=en-US&offset=0&limit=30`,
-            {
-              method: "GET",
-              headers: {
-                "x-rapidapi-key":
-                  "d3c4ef33bfmshea48c175233c56dp1bf0b8jsnffa31f6c4ca3",
-                "x-rapidapi-host": "shazam.p.rapidapi.com"
-              }
-            }
-          );
-
-          if (response.ok) {
-            const data = await response.json();
-            this.tracks = data.tracks?.hits?.map(hit => hit.track) || [];
-          } else {
-            this.tracks = [];
-          }
-        } catch (error) {
-          this.tracks = [];
-        } finally {
-          this.loading = false;
-          this.isSearching = false;
-        }
-
-        // Update URL without navigation to prevent page reload
-        this.$router.push(
-          {
-            name: "Search",
-            params: { searched: this.searched },
-            query: this.$route.query
-          },
-          () => {}
-        );
-      } else {
-        this.isSearching = false;
-        this.loading = true;
-        this.$router.push({ name: "Home" });
-        // Reset to trending tracks
-        this.fetchTrendingTracks();
-      }
-    },
-    async fetchTrendingTracks() {
-      this.loading = true;
+    async fetchTrendingTracks() 
+    {
+      if (!this.artistid) return;
       try {
-        const response = await fetch(
-          "https://shazam.p.rapidapi.com/songs/list-recommendations?key=484129036&locale=en-US",
+        let url = process.env.VUE_APP_GET_TOP_SONGS
+                .replace("{0}",this.artistid);
+        const response = await fetch(url,
           {
             method: "GET",
             headers: {
-              "x-rapidapi-key":
-                "d3c4ef33bfmshea48c175233c56dp1bf0b8jsnffa31f6c4ca3",
-              "x-rapidapi-host": "shazam.p.rapidapi.com"
+              "x-rapidapi-key": process.env.VUE_APP_RAPID_API_KEY,
+              "x-rapidapi-host": process.env.VUE_APP_RAPID_API_HOST
             }
           }
         );
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(
-            `HTTP error! status: ${response.status}, body: ${errorText}`
-          );
-        }
+        if (!response.ok) throw new Error("Failed to fetch artist top songs");
 
-        // First get the response as text to debug
-        const responseText = await response.text();
-
-        // Try to parse JSON
-        let data;
-        try {
-          data = JSON.parse(responseText);
-        } catch (parseError) {
-          throw new Error("Invalid JSON response from server");
-        }
-
-        if (data && Array.isArray(data.tracks)) {
-          this.tracks = data.tracks;
-          this.songs = data;
-        } else {
-          this.tracks = [];
-        }
+        const data = await response.json();
+        this.hits = data.data || [];
+        if(this.hits?.length > 0)
+          this.show = true;
       } catch (error) {
-        this.tracks = [];
-      } finally {
-        this.loading = false;
-        this.show = true;
+        this.error = "Failed to load artist top hits.";
       }
+    },
+    getV2SongCoverArt(song) {
+      const height = 300;
+      const weidth = 300;
+      if (
+        song &&
+        song.attributes &&
+        song.attributes.artwork &&
+        song.attributes.artwork.url
+      ) {
+        return song.attributes.artwork.url
+          .replace("{w}", weidth)
+          .replace("{h}", height);
+      }
+      return "";
     }
   },
   watch: {
@@ -285,6 +207,13 @@ export default {
   width: 70%;
   height: 14px;
   margin-bottom: 0;
+}
+
+.tracks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 24px;
+  margin-bottom: 40px;
 }
 
 /* Skeleton Animation */
@@ -429,6 +358,7 @@ export default {
   justify-content: center;
   transition: all 0.3s ease;
   box-shadow: 0 4px 15px rgba(29, 185, 84, 0.3);
+  text-decoration: none;
 }
 
 .search-button:hover {
@@ -622,8 +552,7 @@ export default {
 
 /* Skeleton Loader Styles */
 .loading-state {
-  display: grid;
-  width: 30%;
+  width: 100%;
 }
 
 .skeleton-section {

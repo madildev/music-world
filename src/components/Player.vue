@@ -226,9 +226,8 @@ export default {
           {
             method: "GET",
             headers: {
-              "x-rapidapi-key":
-                "d3c4ef33bfmshea48c175233c56dp1bf0b8jsnffa31f6c4ca3",
-              "x-rapidapi-host": "shazam.p.rapidapi.com"
+              "x-rapidapi-key": process.env.VUE_APP_RAPID_API_KEY,
+              "x-rapidapi-host": process.env.VUE_APP_RAPID_API_HOST
             }
           }
         );

@@ -163,7 +163,7 @@
 
 <script>
 export default {
-  name: "HelloWorld",
+  name: "SearchResults",
   data() {
     return {
       show: false,
@@ -178,16 +178,14 @@ export default {
   async mounted() {
     try {
       this.loading = true;
-      const response = await fetch(
-        `https://shazam.p.rapidapi.com/v2/search?term=${encodeURIComponent(
-          this.$route.params.searched
-        )}&locale=en-US&offset=0&limit=10`,
+      let url = process.env.VUE_APP_SEARCH_SONGS
+            .replace("{0}", encodeURIComponent(this.$route.params.searched));
+      const response = await fetch(url,
         {
           method: "GET",
           headers: {
-            "x-rapidapi-key":
-              "d3c4ef33bfmshea48c175233c56dp1bf0b8jsnffa31f6c4ca3",
-            "x-rapidapi-host": "shazam.p.rapidapi.com"
+            "x-rapidapi-key": process.env.VUE_APP_RAPID_API_KEY,
+            "x-rapidapi-host": process.env.VUE_APP_RAPID_API_HOST
           }
         }
       );
@@ -199,7 +197,7 @@ export default {
 
       // If we have tracks, get artist's top hits
       if (this.tracks.length > 0) {
-        this.artistid = this.songs?.artists?.data[0]?.id;
+        this.artistid = this.songs?.artists?.data[0]?.id ?? this.artistid;
         if (this.artistid) {
           await this.gethitsongs();
         }
@@ -239,14 +237,14 @@ export default {
       if (!this.artistid) return;
 
       try {
-        const response = await fetch(
-          `https://shazam.p.rapidapi.com/artists/get-top-songs?id=${this.artistid}&l=en-US`,
+        let url = process.env.VUE_APP_GET_TOP_SONGS
+                .replace("{0}",this.artistid);
+        const response = await fetch(url,
           {
             method: "GET",
             headers: {
-              "x-rapidapi-key":
-                "d3c4ef33bfmshea48c175233c56dp1bf0b8jsnffa31f6c4ca3",
-              "x-rapidapi-host": "shazam.p.rapidapi.com"
+              "x-rapidapi-key": process.env.VUE_APP_RAPID_API_KEY,
+              "x-rapidapi-host": process.env.VUE_APP_RAPID_API_HOST
             }
           }
         );
