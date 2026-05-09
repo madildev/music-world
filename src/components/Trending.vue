@@ -1,144 +1,797 @@
 <template>
-    <div class="trend">
-        <!--This section shows the trending songs -->
-        <div class = "header">
-          <input type="search" name="song" id="song" v-model="searched" placeholder="Type the Song/Singer/Genre Name">
-          <router-link :to="{name: 'Search', params: {searched: this.searched}}"><button>Search</button></router-link>
-        </div>
-       <h1 v-if="show">Trending</h1>
-       <div class="music-section">
-           <!-- Here is where the loops iterates-->
-          <div v-for="(data,index) in tracks" :key="index" class="music-list">
-                <div class="image-sec">
-                    <router-link :to="{name: 'Player', params: {songid: data.key }}"><img :src="data.images.coverart" alt=""></router-link>
-                </div>
-                <!-- This is the router link go to the player component-->
-                <div class="details">
-                   <h3>{{data.title}}</h3>
-                   <h4>{{data.subtitle}}</h4>
-                </div>
-          </div>  
-     </div>
+  <div class="trending-container">
+    <div class="search-section">
+      <h2>Discover Music</h2>
+      <div class="search-container">
+        <input
+          type="text"
+          v-model="searched"
+          placeholder="Search for songs, artists, or albums..."
+          class="search-input"
+        />
+        <router-link
+          :to="{ name: 'Search', params: { searched: searched } }"
+          class="search-button"
+          @click.native="handleSearch"
+        >
+          <i class="fas fa-search"></i>
+        </router-link>
+      </div>
     </div>
+
+    <h3 class="section-title">Trending Now</h3>
+    <!-- Skeleton Loaders -->
+    <div v-if="loading" class="loading-state">
+      <div class="skeleton-section">
+        <div class="skeleton-title"></div>
+        <div class="tracks-grid">
+          <div v-for="i in 10" :key="'skeleton-' + i" class="track-card">
+            <div class="skeleton-card">
+              <div class="skeleton-image"></div>
+              <div class="skeleton-details">
+                <div class="skeleton-line title"></div>
+                <div class="skeleton-line artist"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actual Results -->
+    <div v-if="!loading" class="trending-grid">
+      <div v-for="(track, index) in tracks" :key="index" class="track-card">
+        <div class="card-inner">
+          <router-link
+            :to="{ name: 'Player', params: { songid: track.id } }"
+            class="card-link"
+          >
+            <div class="card-image">
+              <img
+                :src="
+                  (track.images && track.images.coverart) ||
+                    'https://via.placeholder.com/300x300?text=No+Image'
+                "
+                :alt="track.title"
+                loading="lazy"
+              />
+              <div class="card-overlay">
+                <button class="play-button" aria-label="Play">
+                  <i class="fas fa-play"></i>
+                </button>
+              </div>
+              <div class="card-gradient"></div>
+            </div>
+            <div class="card-details">
+              <h3 class="track-title" :title="track.title || 'Unknown Title'">
+                {{ track.title || "Unknown Title" }}
+              </h3>
+              <p
+                class="track-artist"
+                :title="track.subtitle || 'Unknown Artist'"
+              >
+                {{ track.subtitle || "Unknown Artist" }}
+              </p>
+            </div>
+          </router-link>
+        </div>
+      </div>
+    </div>
+
+    <!-- No Results Message -->
+    <div
+      v-if="!loading && tracks.length === 0 && !isSearching"
+      class="no-results"
+    >
+      <i class="fas fa-music"></i>
+      <p>The trending tracks are playing hard to get.</p>
+    </div>
+  </div>
 </template>
 
 <script>
 export default {
-    name: 'Trending',
-    data(){
-        return {
-         songs: {},  //This object holds data coming from the api
-         tracks: [],  //This objects holds the array from the songs object
-         show: false,  //This controls the visibility of the elements 
-         searched: ''
-       }
-    },
-    //This is mounted hook and calls evereytime the component is mounted
-    async mounted()
-    {
-        let response = await fetch("https://shazam.p.rapidapi.com/charts/track?&pageSize=30&startFrom=0", 
+  name: "Trending",
+  data() {
+    return {
+      songs: {}, // This object holds data coming from the api
+      tracks: [], // This object holds the array from the songs object
+      show: false, // This controls the visibility of the elements
+      searched: "",
+      loading: true,
+      isSearching: false
+    };
+  },
+  // This is mounted hook that runs when the component is mounted
+  async mounted() {
+    this.loading = true;
+    try {
+      const response = await fetch(
+        "https://shazam.p.rapidapi.com/shazam-events/list?artistId=73406786&l=en-US&from=2022-12-31&limit=50&offset=0",
         {
-	        "method": "GET",
-            "headers": 
-                {
-		         "x-rapidapi-key": "d3c4ef33bfmshea48c175233c56dp1bf0b8jsnffa31f6c4ca3",
-                 "x-rapidapi-host": "shazam.p.rapidapi.com"
-                 }
-            })
-            if(response.ok)
+          method: "GET",
+          headers: {
+            "x-rapidapi-key":
+              "d3c4ef33bfmshea48c175233c56dp1bf0b8jsnffa31f6c4ca3",
+            "x-rapidapi-host": "shazam.p.rapidapi.com"
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data && Array.isArray(data.tracks)) {
+        this.songs = data;
+        this.tracks = data.tracks;
+        this.show = true;
+      } else {
+        this.tracks = [];
+      }
+    } catch (error) {
+      this.tracks = [];
+    } finally {
+      this.loading = false;
+    }
+  },
+  methods: {
+    async handleSearch() {
+      if (this.searched.trim() !== "") {
+        this.isSearching = true;
+        this.loading = true;
+        try {
+          // Fetch search results
+          const response = await fetch(
+            `https://shazam.p.rapidapi.com/search?term=${encodeURIComponent(
+              this.searched
+            )}&locale=en-US&offset=0&limit=30`,
             {
-                this.songs = await response.json();
-                this.tracks = this.songs.tracks;
-                this.show = true;
+              method: "GET",
+              headers: {
+                "x-rapidapi-key":
+                  "d3c4ef33bfmshea48c175233c56dp1bf0b8jsnffa31f6c4ca3",
+                "x-rapidapi-host": "shazam.p.rapidapi.com"
+              }
             }
+          );
+
+          if (response.ok) {
+            const data = await response.json();
+            this.tracks = data.tracks?.hits?.map(hit => hit.track) || [];
+          } else {
+            this.tracks = [];
+          }
+        } catch (error) {
+          this.tracks = [];
+        } finally {
+          this.loading = false;
+          this.isSearching = false;
+        }
+
+        // Update URL without navigation to prevent page reload
+        this.$router.push(
+          {
+            name: "Search",
+            params: { searched: this.searched },
+            query: this.$route.query
+          },
+          () => {}
+        );
+      } else {
+        this.isSearching = false;
+        this.loading = true;
+        this.$router.push({ name: "Home" });
+        // Reset to trending tracks
+        this.fetchTrendingTracks();
+      }
     },
+    async fetchTrendingTracks() {
+      this.loading = true;
+      try {
+        const response = await fetch(
+          "https://shazam.p.rapidapi.com/songs/list-recommendations?key=484129036&locale=en-US",
+          {
+            method: "GET",
+            headers: {
+              "x-rapidapi-key":
+                "d3c4ef33bfmshea48c175233c56dp1bf0b8jsnffa31f6c4ca3",
+              "x-rapidapi-host": "shazam.p.rapidapi.com"
+            }
+          }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(
+            `HTTP error! status: ${response.status}, body: ${errorText}`
+          );
+        }
+
+        // First get the response as text to debug
+        const responseText = await response.text();
+
+        // Try to parse JSON
+        let data;
+        try {
+          data = JSON.parse(responseText);
+        } catch (parseError) {
+          throw new Error("Invalid JSON response from server");
+        }
+
+        if (data && Array.isArray(data.tracks)) {
+          this.tracks = data.tracks;
+          this.songs = data;
+        } else {
+          this.tracks = [];
+        }
+      } catch (error) {
+        this.tracks = [];
+      } finally {
+        this.loading = false;
+        this.show = true;
+      }
+    }
+  },
+  watch: {
+    // Reset searching state when component is mounted or when search is cleared
+    $route() {
+      this.isSearching = false;
+    }
+  }
 };
 </script>
 
 <style scoped>
-.trend{
-    margin: auto;
-    padding: 10px;
+/* Skeleton Loader Styles */
+.skeleton-card {
+  background: #2a2a2a;
+  border-radius: 12px;
+  overflow: hidden;
+  height: 100%;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
-.trend h1{
-  margin-left: 25px;
-  padding: 20px;
-}
-.header{
-  margin-top: 20px;
-  margin: auto;
-}
-.header input{
-  height: 30px;
-  width: 250px;
-  color: black;
-  transform: translateX(500px);
-}
-.header button{
-    font-size: 14px;
-    padding: 5px;
-    outline: none;
-    margin: 4px;
-    transform: translateX(510px);
-}
-.music-section {
-  display: grid;
-  grid-template-columns: 2fr 2fr 2fr 2fr;
-  grid-row-gap: 20px;
-  justify-content: center;
-  align-content: center;
-  margin-left: 50px;
 
+.skeleton-image {
+  width: 100%;
+  padding-bottom: 100%;
+  background: #3a3a3a;
+  position: relative;
+  overflow: hidden;
 }
-.music-section h3{
+
+.skeleton-details {
+  padding: 1rem;
+}
+
+.skeleton-line {
+  height: 16px;
+  background: #3a3a3a;
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-line.title {
+  width: 90%;
+  height: 20px;
+  margin-bottom: 0.5rem;
+}
+
+.skeleton-line.artist {
+  width: 70%;
+  height: 14px;
+  margin-bottom: 0;
+}
+
+/* Skeleton Animation */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton-line::after,
+.skeleton-image::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.05),
+    transparent
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+/* No Results Styling */
+.no-results {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: #b3b3b3;
+  width: 100%;
+  grid-column: 1 / -1;
+}
+
+.no-results i {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.no-results p {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+/* Existing Styles */
+.trending-container {
+  padding: 0 1.5rem 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  color: #e0e0e0;
+}
+
+.section-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 2rem 0 1.5rem;
+  color: #ffffff;
+  position: relative;
+  padding-bottom: 0.75rem;
+}
+
+.section-title::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 60px;
+  height: 4px;
+  background: linear-gradient(90deg, #1db954, #1ed760);
+  border-radius: 2px;
+}
+
+.search-section {
+  margin-bottom: 2rem;
+  text-align: center;
+  position: relative;
+  padding: 2rem 0;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  margin-top: 1rem;
+}
+
+.search-section h2 {
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+  color: var(--text-color);
+}
+
+.search-container {
+  display: flex;
+  max-width: 600px;
+  margin: 0 auto;
+  position: relative;
+  padding: 0 1rem;
+  z-index: 1;
+}
+
+.search-input {
+  flex: 1;
+  padding: 1rem 1.5rem;
+  border: none;
+  border-radius: 30px;
+  font-size: 1.05rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+.search-input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.search-input:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.search-button {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: linear-gradient(135deg, #1db954, #1ed760);
+  border: none;
+  border-radius: 50%;
+  width: 46px;
+  height: 46px;
+  color: white;
   cursor: pointer;
-}
-.music-section a{
-    text-decoration: none;
-    color: black;
-}
-.music-list{
-  height: 330px;  
-  width: 250px;
-  border-radius: 8px 8px 8px 8px;
-  background-color: lightgray;
-  box-shadow: 10px 15px 20px gray;
-  transition: 0.5s;
-}
-.music-list:hover{
- transform: scale3d(1.1,1.1,1.1);
-}
-.music-list .details{
-  padding: 0 15px;
-}
-.image-sec img
-{
- height: 70%;
- width: 100%;
- border-radius: 8px 8px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(29, 185, 84, 0.3);
 }
 
-@media screen and (max-width: 700px){
-  .header{
-      padding-left: 100px;
+.search-button:hover {
+  background: #1ed760;
+  transform: translateY(-50%) scale(1.05);
+}
+
+/* Search Loading State */
+.search-loading {
+  margin-top: 2rem;
+  text-align: center;
+  padding: 1.5rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.search-loader {
+  display: inline-block;
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(29, 185, 84, 0.2);
+  border-radius: 50%;
+  border-top-color: #1db954;
+  animation: spin 1s ease-in-out infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
-  .header input{
-    transform: translateX(20px);
+}
+
+/* Grid Layout */
+.trending-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.75rem;
+  padding: 1rem 0;
+}
+
+.track-card {
+  perspective: 1000px;
+  height: 100%;
+}
+
+.card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.6s;
+  transform-style: preserve-3d;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #282828;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.track-card:hover .card-inner {
+  transform: translateY(-8px);
+}
+
+.card-link {
+  display: block;
+  height: 100%;
+  text-decoration: none;
+  color: inherit;
+}
+
+.card-image {
+  position: relative;
+  width: 100%;
+  padding-bottom: 100%;
+  overflow: hidden;
+  background: #333;
+}
+
+.card-image img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: all 0.5s ease;
+  z-index: 1;
+}
+
+.card-gradient {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.1) 0%,
+    rgba(0, 0, 0, 0.7) 100%
+  );
+  z-index: 2;
+  opacity: 0.8;
+  transition: opacity 0.3s ease;
+}
+
+.track-card:hover .card-gradient {
+  opacity: 0.6;
+}
+
+.card-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 3;
+}
+
+.track-card:hover .card-overlay {
+  opacity: 1;
+}
+
+.play-button {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: #1db954;
+  border: none;
+  color: white;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: scale(0.8);
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.track-card:hover .play-button {
+  transform: scale(1);
+}
+
+.play-button:hover {
+  transform: scale(1.1);
+  background: #1ed760;
+}
+
+.card-details {
+  padding: 1.25rem 1rem;
+  position: relative;
+  z-index: 2;
+  background: #181818;
+  transition: background 0.3s ease;
+}
+
+.track-card:hover .card-details {
+  background: #282828;
+}
+
+.track-title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.3s ease;
+}
+
+.track-artist {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #b3b3b3;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.3s ease;
+}
+
+.track-card:hover .track-title,
+.track-card:hover .track-artist {
+  color: #1db954;
+}
+
+/* Skeleton Loader Styles */
+.loading-state {
+  display: grid;
+  width: 30%;
+}
+
+.skeleton-section {
+  margin-bottom: 3rem;
+}
+
+.skeleton-title {
+  width: 200px;
+  height: 28px;
+  background: #2a2a2a;
+  margin-bottom: 1.5rem;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-card {
+  background: #2a2a2a;
+  border-radius: 12px;
+  overflow: hidden;
+  height: 100%;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.skeleton-image {
+  width: 100%;
+  padding-bottom: 100%;
+  background: #3a3a3a;
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-details {
+  padding: 1rem;
+}
+
+.skeleton-line {
+  height: 16px;
+  background: #3a3a3a;
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-line.title {
+  width: 90%;
+  height: 20px;
+  margin-bottom: 0.5rem;
+}
+
+.skeleton-line.artist {
+  width: 70%;
+  height: 14px;
+  margin-bottom: 0;
+}
+
+/* Skeleton Animation */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
   }
-  .header button{
-    transform: translateX(25px);
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton-line::after,
+.skeleton-image::after,
+.skeleton-title::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.05),
+    transparent
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes loading {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (max-width: 1200px) {
+  .trending-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+}
+
+@media (max-width: 992px) {
+  .trending-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .trending-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 1.25rem;
   }
 
-  .music-section {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr 1fr;
-      margin-left: 25px;
+  .section-title {
+    font-size: 1.5rem;
+    margin: 1.5rem 0 1.25rem;
   }
-  .music-list {
-     height: 170px;
-     width: 100px;
-     font-size: 12px;
+
+  .search-section h2 {
+    font-size: 1.5rem;
+    margin-bottom: 1.25rem;
   }
-    
+
+  .search-container {
+    margin-bottom: 1.5rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .trending-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 1rem;
+  }
+
+  .section-title {
+    font-size: 1.4rem;
+    margin: 1.25rem 0 1rem;
+  }
+
+  .card-details {
+    padding: 1rem 0.75rem;
+  }
+
+  .track-title {
+    font-size: 0.9375rem;
+  }
+
+  .track-artist {
+    font-size: 0.8125rem;
+  }
+}
+
+@media (max-width: 400px) {
+  .trending-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .card-details {
+    min-height: 60px;
+  }
+
+  .card-details h3 {
+    font-size: 0.8125rem;
+  }
+
+  .card-details h4 {
+    font-size: 0.6875rem;
+  }
 }
 </style>
